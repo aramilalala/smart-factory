@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	c := &serial.Config{Name: "COM45", Baud: 115200}
+	c := &serial.Config{Name: "COM232", Baud: 115200}
 	s, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatal(err)
