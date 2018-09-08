@@ -7,22 +7,18 @@ import (
 )
 
 func main() {
-	c := &serial.Config{Name: "COM1", Baud: 115200}
+	c := &serial.Config{Name: "COM4", Baud: 115200}
 	s, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	n, err := s.Write([]byte("test"))
-	if err != nil {
-		log.Fatal(err)
+	for {
+		buf := make([]byte, 128)
+		n, err := s.Read(buf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("%q", buf[:n])
 	}
-
-	buf := make([]byte, 128)
-	n, err = s.Read(buf)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("%q", buf[:n])
-
 }
