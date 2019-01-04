@@ -2,46 +2,88 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-xorm/core"
 	"log"
 	"os"
-	"path/filepath"
+	"strconv"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-xorm/xorm"
 	"github.com/tarm/serial"
 )
 
-func main() {
-	// 创建文件夹及文件
-	os.Mkdir(filepath.Join("./data"), os.ModeDir)
-	f, err := os.OpenFile(filepath.Join("./data", "temp.log"), os.O_APPEND|os.O_WRONLY, 0600)
-	if os.IsNotExist(err) {
-		f, err = os.Create(filepath.Join("./data", "temp.log"))
-	}
-	cnt := true
-	defer f.Close()
+var engine *xorm.Engine
 
+func main() {
 	// 配置并打开端口
-	c := &serial.Config{Name: "COM4", Baud: 115200}
+	c := &serial.Config{Name: "COM10", Baud: 115200}
 	s, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatal(err)
+		os.Exit(1)
 	}
 
-	// 循环读出数据并写入文件
+	// 连接数据库
+	engine, err := xorm.NewEngine("mysql", "root:123@222.200.184.65:13306/tb_database?charset=utf8")
+	handleError(err)
+	engine.Logger().SetLevel(core.LOG_DEBUG)
+
+	// 循环读出数据并写入数据库
 	for {
+		// 读出数据
 		buf := make([]byte, 128)
 		n, err := s.Read(buf)
+		handleError(err)
+		if n == 0 {
+			continue
+		}
+		// D2:T&Ph:25C  08.0
+		deviceText := fmt.Sprintf("%s", string(buf[:n]))
+		fmt.Printf("New data received: %s\n", deviceText)
+
+	    // 解析数据
+		temp := deviceText[8:10]
+		temperature, err := strconv.Atoi(temp)
 		if err != nil {
-			log.Fatal(err)
+			temperature = -1000
+			fmt.Println("Invalid temperature in given data, set to -1000 as default.")
 		}
-		text := fmt.Sprintf("%s", string(buf[:n]))
-		if cnt {
-			text = time.Now().Format("2006-01-02 15:04:05") + " " + text
+		temp = deviceText[12:]
+		ph, err := strconv.ParseFloat(temp, 32)
+		if err != nil {
+			ph = -100.0
+			fmt.Println("Invalid ph in given message, set to -100.0 as default.")
 		}
-		cnt = !cnt
-		if _, err = f.WriteString(text); err != nil {
-			panic(err)
+		dataToBeStored := TemperaturePHAndTime{
+			Temperature:temperature,
+			PH:float32(ph),
+			Datetime:time.Now(),
 		}
-		// fmt.Println(text)
+
+		// 写入数据库
+		affected, err := engine.Insert(&dataToBeStored)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		log.Printf("%d data was inserted.\n", affected)
 	}
+}
+
+func handleError(err error) {
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+}
+
+type TemperaturePHAndTime struct{
+	Temperature int
+	PH float32
+	Datetime time.Time
+}
+
+func (t TemperaturePHAndTime) TableName() string {
+	return "tb_T&PH"
 }
