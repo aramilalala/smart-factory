@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/go-xorm/core"
+	"github.com/tarm/serial"
 	"log"
 	"os"
 	"strconv"
@@ -10,7 +11,6 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/go-xorm/xorm"
-	"github.com/tarm/serial"
 )
 
 var engine *xorm.Engine
@@ -25,7 +25,7 @@ func main() {
 	}
 
 	// 连接数据库
-	engine, err := xorm.NewEngine("mysql", "root:123@222.200.184.65:13306/tb_database?charset=utf8")
+	engine, err := xorm.NewEngine("mysql", "root:root@peng@tcp(222.200.184.65:13306)/tb_database?charset=utf8")
 	handleError(err)
 	engine.Logger().SetLevel(core.LOG_DEBUG)
 
@@ -42,23 +42,25 @@ func main() {
 		deviceText := fmt.Sprintf("%s", string(buf[:n]))
 		fmt.Printf("New data received: %s\n", deviceText)
 
-	    // 解析数据
+		// 解析数据
 		temp := deviceText[8:10]
 		temperature, err := strconv.Atoi(temp)
 		if err != nil {
+			log.Println(err)
 			temperature = -1000
 			fmt.Println("Invalid temperature in given data, set to -1000 as default.")
 		}
-		temp = deviceText[12:]
+		temp = deviceText[13:]
 		ph, err := strconv.ParseFloat(temp, 32)
 		if err != nil {
+			log.Println(err)
 			ph = -100.0
 			fmt.Println("Invalid ph in given message, set to -100.0 as default.")
 		}
 		dataToBeStored := TemperaturePHAndTime{
-			Temperature:temperature,
-			PH:float32(ph),
-			Datetime:time.Now(),
+			Temperature: temperature,
+			PH:          float32(ph),
+			Datatime:    time.Now(),
 		}
 
 		// 写入数据库
@@ -78,10 +80,10 @@ func handleError(err error) {
 	}
 }
 
-type TemperaturePHAndTime struct{
-	Temperature int
-	PH float32
-	Datetime time.Time
+type TemperaturePHAndTime struct {
+	Temperature int       `xorm:"'temperature'"`
+	PH          float32   `xorm:"'PH'"`
+	Datatime    time.Time `xorm:"'datatime'"`
 }
 
 func (t TemperaturePHAndTime) TableName() string {
